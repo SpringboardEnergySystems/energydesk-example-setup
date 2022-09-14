@@ -21,6 +21,9 @@ def generate_users(api_conn, company_registry_number="666"):
                                       "Risk Taker 1", "Legoolsen",UserRoleEnum.TRADER, False, company_registry_number))
     users.append(populate_user_object( "legoriskman@gmail.com",
                                       "Risk Manager 1", "Legopersen",UserRoleEnum.RISKMANAGER, False, company_registry_number))
+    users.append(populate_user_object( "einkven@gmail.com",
+                                      "Risk Manager 2", "Legopersen",UserRoleEnum.RISKMANAGER, True, company_registry_number))
+
     for c in users:
         print(c.get_dict())
     UsersApi.create_users(api_conn, users)
