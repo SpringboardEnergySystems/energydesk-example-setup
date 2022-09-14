@@ -6,6 +6,8 @@ def populate_asset_production_object(api_conn, description, asset_owner_pk, asse
     a=Asset()
     a.description=description
     a.extern_asset_id =description
+    a.meter_id = "x"
+    a.sub_meter_id = "x"
     a.asset_type = AssetsApi.get_asset_type_url(api_conn, asset_type_enum)
     a.asset_owner = CustomersApi.get_company_url(api_conn, asset_owner_pk)
     a.asset_manager= a.asset_owner  #In sample database make owner and manager the same
@@ -16,6 +18,8 @@ def populate_asset_accounts_object(api_conn, description, asset_owner_pk, asset_
     a=Asset()
     a.description=description
     a.extern_asset_id =description
+    a.meter_id = "x"
+    a.sub_meter_id = "x"
     a.asset_type = AssetsApi.get_asset_type_url(api_conn, asset_type_enum)
     a.asset_owner = CustomersApi.get_company_url(api_conn, asset_owner_pk)
     a.asset_manager= a.asset_owner  #In sample database make owner and manager the same
@@ -36,3 +40,5 @@ def generate_demo_assets(api_conn, asset_owner_pk):
     for a in assets:
         print(a.get_dict())
     #AssetsApi.create_assets(api_conn, assets)
+    df = AssetsApi.get_assets_ext(api_conn)
+    print(df)
