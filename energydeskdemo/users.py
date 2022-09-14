@@ -1,5 +1,5 @@
 from energydeskapi.sdk.common_utils import init_api
-from energydeskapi.customers.user_api import UsersApi, User
+from energydeskapi.customers.users_api import UsersApi, User
 from energydeskapi.types.company_enum_types import CompanyTypeEnum, CompanyRoleEnum,UserRoleEnum
 
 def populate_user_object(username_email, first_name, last_name, role, is_superuser, company_reg_number):
