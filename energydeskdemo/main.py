@@ -2,6 +2,7 @@ from energydeskapi.sdk.common_utils import init_api
 from energydeskdemo.companies import generate_demo_companïes
 from energydeskdemo.assets import generate_demo_assets
 from energydeskdemo.users import generate_users
+from energydeskdemo.portfolios import generate_demo_tradingbooks
 from os.path import join, dirname, sys
 import logging
 logging.basicConfig(level=logging.INFO,
@@ -16,4 +17,5 @@ if __name__ == '__main__':
         print("Cannot continue")
         sys.exit(0)
     #generate_demo_assets(api_conn, main_asset_owner_pk)
-    generate_users(api_conn, "666")
+    generate_demo_tradingbooks(api_conn, main_asset_owner_pk)
+    #generate_users(api_conn, "666")
