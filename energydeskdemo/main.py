@@ -16,6 +16,6 @@ if __name__ == '__main__':
     if main_asset_owner_pk is None:
         print("Cannot continue")
         sys.exit(0)
-    #generate_demo_assets(api_conn, main_asset_owner_pk)
+    generate_demo_assets(api_conn, main_asset_owner_pk)
+    generate_users(api_conn, "666")
     generate_demo_tradingbooks(api_conn, main_asset_owner_pk)
-    #generate_users(api_conn, "666")

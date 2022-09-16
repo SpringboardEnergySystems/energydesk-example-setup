@@ -13,4 +13,5 @@ mozilla_django_oidc==2.0.0
 gravis
 django-js-lib-ag-grid-community
 networkx==2.6.3
+pymssql
 git+https://github.com/SpringboardEnergySystems/energydesk-python-sdk.git
