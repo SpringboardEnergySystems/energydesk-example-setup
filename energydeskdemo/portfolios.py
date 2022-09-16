@@ -1,25 +1,49 @@
 from energydeskapi.customers.customers_api import CustomersApi
 from energydeskapi.customers.customers_api import Company
-from energydeskapi.types.company_enum_types import CompanyTypeEnum, CompanyRoleEnum
+from energydeskapi.types.company_enum_types import CompanyTypeEnum, CompanyRoleEnum, UserRoleEnum
 from energydeskapi.portfolios.tradingbooks_api import TradingBooksApi, TradingBook
 from energydeskapi.assets.assets_api import Asset, AssetsApi
 from energydeskapi.types.asset_enum_types import AssetTypeEnum
+from energydeskapi.marketdata.markets_api import MarketsApi
 from energydeskapi.types.contract_enum_types import CommodityTypeEnum, ContractTypeEnum
 from energydeskapi.customers.users_api import UsersApi
 from energydeskapi.contracts.contracts_api import ContractsApi
 
-def add_tradingbook(api_conn, description, asset_pk, manager, contract_types_enum_list, commodity_types_enum_list, trader_list):
+def add_tradingbook(api_conn, description, asset_pk, manager_pk, contract_types_enum_list, commodity_types_enum_list, trader_list):
     c=TradingBook()
     c.description=description
     c.asset=AssetsApi.get_asset_url(api_conn, asset_pk)
-    c.manager=manager
+    c.manager=CustomersApi.get_company_url(api_conn, manager_pk)
     c.contract_types=[ContractsApi.get_contract_type_url(api_conn, elem) for elem in contract_types_enum_list]
-    c.commodity_types=[ContractsApi.get_commodity_type_url(api_conn,elem) for elem in commodity_types_enum_list]
+    c.commodity_types=[MarketsApi.get_commodity_type_url(api_conn,elem) for elem in commodity_types_enum_list]
     c.traders=[UsersApi.get_user_url(api_conn, elem) for elem in trader_list]
     return c
 
 def generate_demo_tradingbooks(api_conn, owner_company):
-    accounts=AssetsApi.get_assetsbytype_ext(api_conn, AssetTypeEnum.ACCOUNT)
+    accounts_df=AssetsApi.get_assetsbytype_ext(api_conn, AssetTypeEnum.ACCOUNT)
+    contract_types=[ ContractTypeEnum.FINANCIAL]
+    commodity_types = [CommodityTypeEnum.POWER, CommodityTypeEnum.CO2]
+
+    traders=UsersApi.get_users_by_role(api_conn, UserRoleEnum.TRADER)
+    trader_list=[elem['pk'] for elem in traders]
+    tradingbooks=[]
+    for index, account in accounts_df.iterrows():
+        tr=add_tradingbook(api_conn, "Trading on account " + account['description'],
+                        account['pk'], owner_company, contract_types, commodity_types, trader_list )
+        tradingbooks.append(tr)
+    contract_types = [ContractTypeEnum.PHYSICAL]
+    wind_df = AssetsApi.get_assetsbytype_ext(api_conn, AssetTypeEnum.WIND)
+    print(wind_df)
+    n=0
+    for index, account in wind_df.iterrows():
+        tr=add_tradingbook(api_conn, "PPA trades on " + account['description'],
+                        account['pk'], owner_company, contract_types, commodity_types, trader_list )
+        tradingbooks.append(tr)
+        n=n+1
+        if n>2:
+            break
+    TradingBooksApi.register_tradingbooks(api_conn, tradingbooks)
+    return
     if len(accounts)==0:
         return
     print(accounts)
