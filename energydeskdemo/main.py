@@ -3,6 +3,7 @@ from energydeskdemo.companies import generate_demo_companïes
 from energydeskdemo.assets import generate_demo_assets
 from energydeskdemo.users import generate_users
 from energydeskdemo.portfolios import generate_demo_tradingbooks
+from energydeskdemo.contracts import generate_demo_trades
 from os.path import join, dirname, sys
 import logging
 logging.basicConfig(level=logging.INFO,
@@ -13,9 +14,11 @@ logging.basicConfig(level=logging.INFO,
 if __name__ == '__main__':
     api_conn = init_api(dirname(__file__))  #Loads data from .env initializing the api object
     main_asset_owner_pk=generate_demo_companïes(api_conn)  #Returns the main asset owner
-    if main_asset_owner_pk is None:
-        print("Cannot continue")
-        sys.exit(0)
-    generate_demo_assets(api_conn, main_asset_owner_pk)
-    generate_users(api_conn, "666")
-    generate_demo_tradingbooks(api_conn, main_asset_owner_pk)
+    #if main_asset_owner_pk is None:
+    #    print("Cannot continue")
+    #    sys.exit(0)
+    #generate_demo_assets(api_conn, main_asset_owner_pk)
+    #generate_users(api_conn, "666")
+    books=generate_demo_tradingbooks(api_conn, main_asset_owner_pk)
+    for b in books:
+        generate_demo_trades(api_conn, b)

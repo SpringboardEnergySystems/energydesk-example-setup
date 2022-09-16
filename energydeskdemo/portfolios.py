@@ -43,23 +43,5 @@ def generate_demo_tradingbooks(api_conn, owner_company):
         if n>2:
             break
     TradingBooksApi.register_tradingbooks(api_conn, tradingbooks)
-    return
-    if len(accounts)==0:
-        return
-    print(accounts)
-    k=accounts['pk'].iloc[0]
-    asset_account=AssetsApi.get_asset_url(api_conn, k)
-    print(accounts, asset_account)
-    return
-    companies=[]
-    companies.append(add_tradingbook(api_conn, "Legoland Super Traders", "666", CompanyTypeEnum.UTILITY))
-    for c in companies:
-        print(c.get_dict())
-    CustomersApi.create_companies(api_conn, companies)
+    return tradingbooks
 
-    # Return the main company to be used for later demo objects
-    main_owner=CustomersApi.get_company_from_registry_number(api_conn, "666")
-    if main_owner is not None:
-        return main_owner['pk']
-    else:
-        return None
