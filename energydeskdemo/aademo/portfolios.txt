@@ -1,0 +1,5 @@
+Contracts;981952324;;Trading,Hedging,PPA;
+Production;981952324;Wind Power;;
+Production;981952324;Hydro Power;;
+Entelios;981952324;;Bedriftskunder Sørland,Bedriftskunder Østland;
+Å Total;981952324;Entelios,Production,Contracts;;

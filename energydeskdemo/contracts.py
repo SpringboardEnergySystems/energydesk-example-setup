@@ -10,10 +10,11 @@ from energydeskapi.customers.users_api import UsersApi
 from energydeskapi.marketdata.derivatives_api import DerivativesApi
 from energydeskapi.portfolios.tradingbooks_api import TradingBooksApi
 from energydeskapi.contracts.contracts_api import ContractsApi, Contract
-from energydeskapi.types.contract_enum_types import ContractStatusEnum, ContractTypeEnum, CommodityTypeEnum, InstrumentTypeEnum
+from energydeskapi.types.contract_enum_types import ContractStatusEnum, ContractTypeEnum
+from energydeskapi.types.market_enum_types import CommodityTypeEnum, InstrumentTypeEnum
 from os.path import join, dirname
 from moneyed import EUR
-from energydeskapi.sdk.datetime_utils import convert_datime_to_utcstr, convert_datime_to_locstr
+from energydeskapi.sdk.datetime_utils import convert_datetime_from_utc, convert_datime_to_locstr
 from dotenv import load_dotenv
 from energydeskapi.sdk.money_utils import FormattedMoney
 from datetime import datetime, timedelta
@@ -41,13 +42,13 @@ def generate_demo_trades(api_conn, trading_book):
 
     TradingBooksApi.fetch_tradingbooks(api_conn)
     yester = (datetime.today() + timedelta(days=-1)).replace( hour=0, minute=0, second=0, microsecond=0)
-    dtstr1=convert_datime_to_utcstr(yester)
+    dtstr1=convert_datetime_from_utc(yester)
     dtstr2=convert_datime_to_locstr(yester, "Europe/Oslo")  #In order to get the date correct
     trading_book = 1  # Use lookup function to set correct trading book key. Server will check if user allowed still
-    contract_type = ContractTypeEnum.FINANCIAL
+    contract_type = ContractTypeEnum.NASDAQ
     commodity_type = CommodityTypeEnum.POWER
     contract_status = ContractStatusEnum.REGISTERED
-    instrument_type = InstrumentTypeEnum.FORWARD
+    instrument_type = InstrumentTypeEnum.FWD
 
     counterpart = api_conn.get_base_url() + "/api/customers/companies/" + str(ndaq_pk) + "/"
     marketplace = api_conn.get_base_url() + "/api/customers/companies/" + str(ndaq_pk) + "/"

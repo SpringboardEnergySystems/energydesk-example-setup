@@ -23,11 +23,11 @@ def setup_additional_users(users, strlst, role, is_superuser, company_reg_number
                                           email_prefix[0], email_prefix[0], role, is_superuser,
                                           company_reg_number))
 
-def generate_users(api_conn, company_registry_number="666"):
+def generate_users(api_conn, company_registry_number="981952324"):
     users=[]
     users.append(populate_user_object( "legotrader1@gmail.com",
                                       "Trader 1", "Legosvensen",UserRoleEnum.TRADER, False, company_registry_number))
-    users.append(populate_user_object( "legotrader2@gmail.com",
+    users.append(populate_user_object( "einkven@gmail.com",
                                       "Risk Taker 1", "Legoolsen",UserRoleEnum.TRADER, False, company_registry_number))
     users.append(populate_user_object( "legoriskman@gmail.com",
                                       "Risk Manager 1", "Legopersen",UserRoleEnum.RISKMANAGER, False, company_registry_number))
