@@ -1,11 +1,13 @@
 from energydeskapi.sdk.common_utils import init_api
-from energydeskdemo.companies import load_demo_company
+from energydeskdemo.companies import load_demo_company, register_ice_company
 from energydeskdemo.assets import generate_demo_assets
 from energydeskdemo.users import generate_users
 from energydeskdemo.production_loader import generate_production_assets_and_forecasts
 from energydeskdemo.asset_groups import generate_demo_asset_groups
 from energydeskdemo.portfolios import load_portfolios
 from energydeskdemo.demoproducts.loader import build_connections, retrieve_all_data
+from energydeskdemo.contracts import generate_ice_emission_contracts
+from energydeskdemo.fee_rates import register_ice_fee_rates
 from os.path import join, dirname, sys
 import logging
 logging.basicConfig(level=logging.INFO,
@@ -29,3 +31,6 @@ if __name__ == '__main__':
     load_portfolios(api_conn, owner_company_pk=main_asset_owner_pk)
     source_conn, target_conn = build_connections(env_dir)
     retrieve_all_data(source_conn, target_conn)
+    register_ice_company(api_conn)              # Ensure ICE Futures Europe exists as counterpart
+    register_ice_fee_rates(api_conn)            # Seed TRADING/CLEARING fee rates for ICE EUA
+    generate_ice_emission_contracts(api_conn)   # ICE EUA futures + European options

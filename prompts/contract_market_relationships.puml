@@ -1,0 +1,162 @@
+@startuml Contract Market Relationships
+!theme spacelab
+
+title Contract, MarketPlace, CommodityDefinition, and MarketProduct Relationships
+
+package "energydesk.apps.markets.models" {
+    class MarketPlace {
+        + id
+        + name
+        + description
+        + operator
+    }
+
+    class CommodityDefinition {
+        + id
+        + product_code
+        + generic_product_code
+        + description
+        + area
+        + structure_type
+        + price_basis
+        + volatility
+        + delivery_from
+        + delivery_until
+        + market
+        + instrument_type
+        + commodity_type
+        + delivery_type
+        + block_size_category
+        + contract_size
+        + **otc**
+        + profile_category
+        + profile_type
+        + commodity_profile
+        + spread
+        + asset_link
+        + cascaded_date
+    }
+
+    class MarketProduct {
+        + id
+        + market_ticker [unique]
+        + isin_code
+        + alternative_unique_id
+        + currency
+        + denomination
+        + traded_from
+        + traded_until
+        + **commodity_definition** <<FK>>
+        + **market_place** <<FK>>
+    }
+}
+
+package "energydesk.apps.portfoliomanager.models" {
+    class Contract {
+        + id [PK]
+        + external_contract_id
+        + trade_id_alternative1
+        + trade_id_alternative1_description
+        + trade_id_alternative2
+        + trade_id_alternative2_description
+        + client_order_id
+        + account_preallocation
+        + trade_id_gcm
+        + trade_date
+        + trade_time
+        + **trading_book** <<FK>>
+        + **commodity** <<FK>>
+        + contract_owner
+        + contract_portfoliomanager
+        + counterpart
+        + broker
+        + buy_or_sell
+        + contract_price_amount
+        + contract_price_currency
+        + linked_contract
+        + quantity
+        + quantity_type
+        + quantity_unit
+        + contract_type
+        + contract_sub_type
+        + trading_fee_amount
+        + trading_fee_currency
+        + clearing_fee_amount
+        + clearing_fee_currency
+        + broker_fee_amount
+        + broker_fee_currency
+        + clearing_commission_fee_amount
+        + clearing_commission_fee_currency
+        + trader
+        + updated_by
+        + **exchange** <<FK>>
+        + **marketplace_product** <<FK>>
+        + last_update_time
+        + contract_status
+        + contract_status_comment
+        + audit_trail_pk
+        + contract_tags
+        + contract_profile
+        + cascading_generated
+        --
+        + contract_price
+        + trading_fee
+        + clearing_fee
+        + broker_fee
+        + clearing_commission_fee
+    }
+
+    class TradingBook {
+        + id
+        + description
+        + asset
+        + manager
+        + stakeholders
+        + commodity_types
+        + traders
+    }
+}
+
+' Layout directives
+MarketProduct -[hidden]right- MarketPlace
+
+' Relationships
+Contract "many" --> "1" CommodityDefinition : commodity
+Contract "many" --> "0..1" MarketProduct : marketplace_product
+Contract "many" --> "0..1" MarketPlace : exchange
+Contract "many" --> "1" TradingBook : trading_book
+
+MarketProduct "many" -right-> "1" MarketPlace : market_place
+MarketProduct "many" --> "0..1" CommodityDefinition : commodity_definition
+
+note right of Contract
+  Contract represents a trade/deal
+  - Can reference a MarketPlace via exchange field
+  - Can reference a MarketProduct via marketplace_product field
+  - Always references a CommodityDefinition via commodity field
+  - Belongs to a TradingBook
+end note
+
+note right of MarketProduct
+  MarketProduct is a tradeable product on a marketplace
+  - Has a unique market_ticker
+  - Links to a MarketPlace
+  - May link to a CommodityDefinition for product details
+end note
+
+note right of CommodityDefinition
+  CommodityDefinition defines product specifications
+  - Can be for OTC or exchange-traded products
+  - Contains delivery periods, pricing info
+  - Can be linked to by both Contracts and MarketProducts
+end note
+
+note right of MarketPlace
+  MarketPlace represents an exchange or trading venue
+  - Operator is a Company
+  - Products are traded on this marketplace
+  - Contracts can reference this as the exchange
+end note
+
+@enduml
+
