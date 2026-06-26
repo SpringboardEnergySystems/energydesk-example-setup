@@ -31,16 +31,10 @@ CF_MAP   = {"hydro": HYDRO_CF, "wind": WIND_CF}
 def _build_monthly_rows(plant: dict, start_year: int = 2026, years: int = 10) -> list[dict]:
     """Generate monthly forecast rows for a single plant.
 
-    Uses a fixed per-plant random seed derived from the plant name so the
-    same values are produced on every run regardless of the order plants are
-    processed — matching the original ``random.seed(42)`` + sequential loop
-    behaviour when the full plant list is processed in order.
+    Uses a per-plant RNG seeded from the plant name so results are
+    deterministic and independent of processing order.
     """
     cf_seasonal = CF_MAP[plant["type"].lower()]
-    # Replicate the original bias: seed globally with 42 then advance the
-    # state by sampling plant_bias first.  Callers that need the exact same
-    # sequence must pass a pre-seeded Random instance; here we accept a tiny
-    # per-plant seed for the standalone / influx-only path.
     rng = random.Random(hash(plant["name"]) & 0xFFFFFFFF)
     plant_bias = rng.uniform(0.88, 1.12)
     monthly_rows = []
@@ -167,27 +161,51 @@ def save_production_forecast(
 
 
 # ---------------------------------------------------------------------------
-# InfluxDB writer factory
+# InfluxDB writer factories
 # ---------------------------------------------------------------------------
 
-def _build_influx_writer(customer_name: str):
-    """Build an InfluxDB writer for ``{customer_name}_assetdata``.
+def _build_influx_writer_strict(customer_name: str):
+    """Build and verify an InfluxDB writer.  Raises on any problem.
 
-    Returns ``None`` when ``INFLUXDB_TOKEN`` is absent so the demo setup
-    continues to work without InfluxDB configured.
+    Used by paths where InfluxDB is the explicit target (``--sink influx``).
+    Calls ``ping()`` to verify connectivity and token validity, then calls
+    ``ensure_bucket_exists()`` to create the bucket when needed.  Any
+    failure propagates immediately so the user sees a clear error message
+    rather than silently writing nothing.
+
+    Raises
+    ------
+    RuntimeError
+        If the server is unreachable or the token is rejected.
+    environ.ImproperlyConfigured
+        If ``INFLUXDB_TOKEN`` is not set.
+    influxdb_client.rest.ApiException
+        On unexpected InfluxDB API errors.
+    """
+    from energydeskapi.timeseries.influxwriter import build_influx_sink, ensure_bucket_exists
+
+    bucket = "{}_assetdata".format(customer_name)
+    logger.info("Connecting to InfluxDB — customer_name='%s' bucket='%s'", customer_name, bucket)
+    writer = build_influx_sink(bucket=bucket)
+    writer.ping()                    # raises RuntimeError if unreachable / bad token
+    ensure_bucket_exists(writer)     # creates bucket when missing, no-op when present
+    logger.info("InfluxDB ready — url=%s org='%s' bucket='%s'", writer._url, writer.org, bucket)
+    return writer
+
+
+def _build_influx_writer_optional(customer_name: str):
+    """Attempt to build an InfluxDB writer; return ``None`` on any failure.
+
+    Used by paths where InfluxDB is optional (``--sink both`` /
+    ``generate_production_assets_and_forecasts()``).  Logs a warning so the
+    user knows the InfluxDB write was skipped, but does not abort.
     """
     try:
-        from energydeskapi.timeseries.influxwriter import (
-            build_influx_sink,
-            ensure_bucket_exists,
-        )
-        bucket = "{}_assetdata".format(customer_name)
-        writer = build_influx_sink(bucket=bucket)
-        ensure_bucket_exists(writer)
-        logger.info("InfluxDB writer ready — bucket: %s", bucket)
-        return writer
+        return _build_influx_writer_strict(customer_name)
     except Exception as exc:  # noqa: BLE001
-        logger.warning("InfluxDB not available (%s) — writing to appserver only.", exc)
+        logger.warning(
+            "InfluxDB not available — writing to appserver only.  Reason: %s", exc
+        )
         return None
 
 
@@ -239,8 +257,10 @@ def generate_production_assets_and_forecasts(api_conn, asset_owner_pk, customer_
     df_assets = AssetsApi.get_assets_df(api_conn, parameters={'page_size': 200})
     logger.info("Assets loaded:\n%s", df_assets[['pk', 'description']].to_string())
 
-    influx_writer = _build_influx_writer(customer_name)
-    random.seed(42)  # global seed for full-generation path
+    # Optional InfluxDB — never aborts if unavailable
+    influx_writer = _build_influx_writer_optional(customer_name)
+
+    random.seed(42)  # global seed — keeps sequence identical to the original
     start_year = 2026
     timeseries_date = "{}-01-01".format(start_year)
 
@@ -257,8 +277,6 @@ def generate_production_assets_and_forecasts(api_conn, asset_owner_pk, customer_
                 "lat": p["lat"], "lon": p["lon"],
                 "capacity_mw": p["capacity_mw"], "bidzone": "",
             }
-            # Use the global RNG state (seeded with 42 above) to keep the
-            # sequence identical to the original implementation.
             cf_seasonal = CF_MAP[p["type"].lower()]
             plant_bias = random.uniform(0.88, 1.12)
             monthly_rows = []
@@ -294,13 +312,11 @@ def generate_production_assets_and_forecasts(api_conn, asset_owner_pk, customer_
 def backfill_influx_from_existing_assets(api_conn, customer_name: str) -> None:
     """Write production forecasts to InfluxDB for assets already in the appserver.
 
-    Does not touch the appserver at all — no upserts, no blob writes.
-    Looks up existing assets by name from the appserver to get their PKs,
-    regenerates the forecast rows with the same per-plant seed used by
-    ``_build_monthly_rows()``, and writes directly to InfluxDB.
+    Does not touch the appserver — looks up existing assets by name to get
+    their PKs, regenerates the forecast rows, and writes to InfluxDB only.
 
-    Use this when you have already run the full demo setup and only want to
-    populate InfluxDB without re-running everything.
+    Raises on any InfluxDB connectivity or configuration problem so the
+    caller sees a clear error immediately rather than silently writing nothing.
 
     Parameters
     ----------
@@ -313,13 +329,13 @@ def backfill_influx_from_existing_assets(api_conn, customer_name: str) -> None:
     with open(plants_path, "r", encoding="utf-8") as f:
         plants = json.load(f)
 
-    influx_writer = _build_influx_writer(customer_name)
-    if influx_writer is None:
-        logger.error("Cannot backfill InfluxDB: no writer available. Check INFLUXDB_TOKEN.")
-        return
+    # Strict — raises immediately on misconfiguration
+    influx_writer = _build_influx_writer_strict(customer_name)
 
     df_assets = AssetsApi.get_assets_df(api_conn, parameters={'page_size': 200})
     logger.info("Found %d assets in appserver.", len(df_assets))
+
+    from energydeskapi.timeseries.timeseries_persister import write_production_forecast_to_influx
 
     try:
         total_points = 0
@@ -336,10 +352,6 @@ def backfill_influx_from_existing_assets(api_conn, customer_name: str) -> None:
                 "capacity_mw": p["capacity_mw"], "bidzone": "",
             }
             monthly_rows = _build_monthly_rows(p)
-
-            from energydeskapi.timeseries.timeseries_persister import (
-                write_production_forecast_to_influx,
-            )
             n = write_production_forecast_to_influx(
                 monthly_rows=monthly_rows,
                 asset_meta=asset_meta,
@@ -407,24 +419,17 @@ Examples:
 
     asset_owner_pk = int(company['pk'])
     customer_name = company.get('short_name', 'aademo').lower().replace(' ', '_')
+    logger.info("Customer: '%s'  registry: %s", customer_name, args.registry)
 
     if args.sink == "influx":
-        # Assets already exist — just backfill InfluxDB.
         logger.info("Sink: influx only — backfilling InfluxDB from existing assets.")
         backfill_influx_from_existing_assets(api_conn, customer_name)
 
     elif args.sink == "appserver":
-        # Original behaviour — no InfluxDB.
         logger.info("Sink: appserver only.")
         generate_production_assets_and_forecasts(
             api_conn, asset_owner_pk, customer_name=customer_name
         )
-        # generate_…() will still try to build an influx writer from env;
-        # to suppress that we monkey-patch _build_influx_writer to always
-        # return None for this run.
-        # Simpler: the env var simply won't be set in appserver-only deploys.
-        # If it IS set and you still want appserver-only, unset INFLUXDB_TOKEN
-        # or use the --sink appserver flag which communicates intent clearly.
 
     else:  # "both"
         logger.info("Sink: appserver + InfluxDB.")
