@@ -53,6 +53,14 @@ def _build_monthly_rows(plant: dict, start_year: int = 2026, years: int = 10) ->
     return monthly_rows
 
 
+def _resolve_price_area(asset_row, plant: dict) -> str:
+    """Return price_area from the appserver asset row, falling back to the JSON plant dict."""
+    area = asset_row.get("price_area", "")
+    if area:
+        return str(area)
+    return str(plant.get("price_area", ""))
+
+
 # ---------------------------------------------------------------------------
 # Single-asset save (appserver + optional InfluxDB)
 # ---------------------------------------------------------------------------
@@ -86,7 +94,7 @@ def save_production_forecast(
                 "lat":         <float>,
                 "lon":         <float>,
                 "capacity_mw": <float>,
-                "price_area":  <str>,   # e.g. "NO2"
+                "price_area":  <str>,   # e.g. "NO2" — from appserver
                 "bidzone":     <str>,   # "" when unknown
             }
 
@@ -254,7 +262,7 @@ def generate_production_assets_and_forecasts(api_conn, asset_owner_pk, customer_
 
     AssetsApi.create_assets(api_conn, [a for _, a in asset_objects])
 
-    # Reload to get PKs
+    # Reload to get PKs and appserver-populated fields (including price_area)
     df_assets = AssetsApi.get_assets_df(api_conn, parameters={'page_size': 200})
     logger.info("Assets loaded:\n%s", df_assets[['pk', 'description']].to_string())
 
@@ -272,6 +280,7 @@ def generate_production_assets_and_forecasts(api_conn, asset_owner_pk, customer_
                 logger.warning("Asset not found for plant: %s", p["name"])
                 continue
             asset_pk = int(match.iloc[0]['pk'])
+            asset_row = match.iloc[0]
             asset_meta = {
                 "pk":          asset_pk,
                 "name":        p["name"],
@@ -280,7 +289,7 @@ def generate_production_assets_and_forecasts(api_conn, asset_owner_pk, customer_
                 "lat":         p["lat"],
                 "lon":         p["lon"],
                 "capacity_mw": p["capacity_mw"],
-                "price_area":  p.get("price_area", ""),
+                "price_area":  _resolve_price_area(asset_row, p),
                 "bidzone":     "",
             }
             cf_seasonal = CF_MAP[p["type"].lower()]
@@ -303,7 +312,8 @@ def generate_production_assets_and_forecasts(api_conn, asset_owner_pk, customer_
                 influx_writer=influx_writer,
                 write_appserver=True,
             )
-            logger.info("Stored %d monthly forecast points for %s", len(monthly_rows), p["name"])
+            logger.info("Stored %d monthly forecast points for %s (price_area=%s)",
+                        len(monthly_rows), p["name"], asset_meta["price_area"])
     finally:
         if influx_writer is not None:
             influx_writer.close()
@@ -338,6 +348,7 @@ def backfill_influx_from_existing_assets(api_conn, customer_name: str) -> None:
     # Strict — raises immediately on misconfiguration
     influx_writer = _build_influx_writer_strict(customer_name)
 
+    # Fetch assets including appserver-populated fields (price_area, etc.)
     df_assets = AssetsApi.get_assets_df(api_conn, parameters={'page_size': 200})
     logger.info("Found %d assets in appserver.", len(df_assets))
 
@@ -351,6 +362,7 @@ def backfill_influx_from_existing_assets(api_conn, customer_name: str) -> None:
                 logger.warning("Asset '%s' not found in appserver — skipping.", p["name"])
                 continue
             asset_pk = int(match.iloc[0]['pk'])
+            asset_row = match.iloc[0]
             asset_meta = {
                 "pk":          asset_pk,
                 "name":        p["name"],
@@ -359,7 +371,7 @@ def backfill_influx_from_existing_assets(api_conn, customer_name: str) -> None:
                 "lat":         p["lat"],
                 "lon":         p["lon"],
                 "capacity_mw": p["capacity_mw"],
-                "price_area":  p.get("price_area", ""),
+                "price_area":  _resolve_price_area(asset_row, p),
                 "bidzone":     "",
             }
             monthly_rows = _build_monthly_rows(p)
@@ -369,7 +381,8 @@ def backfill_influx_from_existing_assets(api_conn, customer_name: str) -> None:
                 writer=influx_writer,
             )
             total_points += n
-            logger.info("  %s — wrote %d points", p["name"], n)
+            logger.info("  %s (price_area=%s) — wrote %d points",
+                        p["name"], asset_meta["price_area"], n)
 
         logger.info("InfluxDB backfill complete. Total points written: %d", total_points)
     finally:
