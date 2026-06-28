@@ -86,6 +86,7 @@ def save_production_forecast(
                 "lat":         <float>,
                 "lon":         <float>,
                 "capacity_mw": <float>,
+                "price_area":  <str>,   # e.g. "NO2"
                 "bidzone":     <str>,   # "" when unknown
             }
 
@@ -272,10 +273,15 @@ def generate_production_assets_and_forecasts(api_conn, asset_owner_pk, customer_
                 continue
             asset_pk = int(match.iloc[0]['pk'])
             asset_meta = {
-                "pk": asset_pk, "name": p["name"],
-                "asset_type": p["type"].lower(), "owner": p["owner"],
-                "lat": p["lat"], "lon": p["lon"],
-                "capacity_mw": p["capacity_mw"], "bidzone": "",
+                "pk":          asset_pk,
+                "name":        p["name"],
+                "asset_type":  p["type"].lower(),
+                "owner":       p["owner"],
+                "lat":         p["lat"],
+                "lon":         p["lon"],
+                "capacity_mw": p["capacity_mw"],
+                "price_area":  p.get("price_area", ""),
+                "bidzone":     "",
             }
             cf_seasonal = CF_MAP[p["type"].lower()]
             plant_bias = random.uniform(0.88, 1.12)
@@ -346,10 +352,15 @@ def backfill_influx_from_existing_assets(api_conn, customer_name: str) -> None:
                 continue
             asset_pk = int(match.iloc[0]['pk'])
             asset_meta = {
-                "pk": asset_pk, "name": p["name"],
-                "asset_type": p["type"].lower(), "owner": p["owner"],
-                "lat": p["lat"], "lon": p["lon"],
-                "capacity_mw": p["capacity_mw"], "bidzone": "",
+                "pk":          asset_pk,
+                "name":        p["name"],
+                "asset_type":  p["type"].lower(),
+                "owner":       p["owner"],
+                "lat":         p["lat"],
+                "lon":         p["lon"],
+                "capacity_mw": p["capacity_mw"],
+                "price_area":  p.get("price_area", ""),
+                "bidzone":     "",
             }
             monthly_rows = _build_monthly_rows(p)
             n = write_production_forecast_to_influx(
